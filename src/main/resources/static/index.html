@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>弱點掃描報告上傳測試</title>
+</head>
+<body style="font-family: Arial, sans-serif; padding: 50px; text-align: center;">
+
+<h2>🚀 上傳 ZAP 掃描報告</h2>
+<p>請選擇您的 HTML 報告檔案，然後點擊上傳。</p>
+
+<div style="border: 2px dashed #ccc; padding: 40px; display: inline-block; background-color: #f9f9f9;">
+    <form action="/api/reports/upload" method="post" enctype="multipart/form-data">
+        <input type="file" name="file" accept=".html" required style="font-size: 16px;">
+        <br><br>
+        <button type="submit" style="background-color: #4CAF50; color: white; padding: 10px 24px; border: none; cursor: pointer; font-size: 16px; border-radius: 5px;">
+            上傳並解析
+        </button>
+    </form>
+</div>
+
+</body>
+</html>
