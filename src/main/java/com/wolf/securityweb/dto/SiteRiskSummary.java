@@ -1,9 +1,16 @@
 package com.wolf.securityweb.dto;
 
 import lombok.Data;
+import java.time.LocalDateTime;
 
 @Data
 public class SiteRiskSummary {
+
+    // 🔥 新增這個欄位！
+    // 這樣 Service 才能呼叫 setReportId(...)
+    private Long reportId;
+
     private String url;
-    private DashboardSummary riskCounts; //每個網站自己也有一組統計
+    private LocalDateTime generatedOn;
+    private DashboardSummary riskCounts;
 }

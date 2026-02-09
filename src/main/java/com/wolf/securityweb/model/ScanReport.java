@@ -1,5 +1,7 @@
 package com.wolf.securityweb.model;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
+import com.fasterxml.jackson.annotation.JsonManagedReference;
 import jakarta.persistence.*;
 import lombok.Data;
 import java.time.LocalDateTime;

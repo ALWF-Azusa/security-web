@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>風險等級篩選</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 20px; background-color: #f4f7f6; color: #333; }
+        .container { max-width: 900px; margin: 0 auto; }
+
+        .header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 30px; }
+        .title { font-size: 2em; font-weight: bold; color: #2c3e50; }
+        .btn-back { padding: 8px 16px; background-color: #95a5a6; color: white; border-radius: 5px; text-decoration: none; font-weight: bold; }
+        .btn-back:hover { background-color: #7f8c8d; }
+
+        /* 卡片樣式 */
+        .site-card { background: white; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); margin-bottom: 20px; padding: 20px; border-left: 5px solid #ccc; }
+
+        /* 根據風險等級改變邊框顏色 */
+        .border-High { border-left-color: #e74c3c; }
+        .border-Medium { border-left-color: #e67e22; }
+        .border-Low { border-left-color: #f1c40f; }
+        .border-Informational { border-left-color: #3498db; }
+
+        .site-url { font-size: 1.3em; font-weight: bold; margin-bottom: 10px; display: block; color: #2c3e50; text-decoration: none; }
+        .site-url:hover { text-decoration: underline; }
+
+        .vuln-list { list-style: none; padding: 0; margin: 0; }
+        .vuln-item {
+            padding: 8px 12px;
+            margin-bottom: 5px;
+            background-color: #f8f9fa;
+            border-radius: 4px;
+            font-size: 0.95em;
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .vuln-item:hover { background-color: #e9ecef; }
+        .vuln-item::before { content: "⚠️"; margin-right: 8px; font-size: 0.8em; }
+
+        .empty-msg { text-align: center; font-size: 1.2em; color: #777; margin-top: 50px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="header">
+        <div class="title">
+            風險篩選: <span id="levelTitle" style="color: #e74c3c;">...</span>
+        </div>
+        <a href="/dashboard.html" class="btn-back">← 回儀表板</a>
+    </div>
+
+    <div id="resultsContainer">
+        <div style="text-align:center;">載入中...</div>
+    </div>
+</div>
+
+<script>
+    const urlParams = new URLSearchParams(window.location.search);
+    const level = urlParams.get('level'); // 取得網址上的 ?level=High
+
+    if (!level) {
+        window.location.href = '/dashboard.html';
+    }
+
+    // 設定標題顏色與文字
+    const levelSpan = document.getElementById('levelTitle');
+    levelSpan.innerText = level;
+
+    // 設定對應顏色
+    const colors = { 'High': '#e74c3c', 'Medium': '#e67e22', 'Low': '#f1c40f', 'Informational': '#3498db' };
+    if(colors[level]) levelSpan.style.color = colors[level];
+
+    // 呼叫 API
+    fetch(`/api/reports/risk/${level}`)
+        .then(res => res.json())
+        .then(data => {
+            const container = document.getElementById('resultsContainer');
+
+            if (data.length === 0) {
+                container.innerHTML = `<div class="empty-msg">太棒了！目前沒有發現 <b>${level}</b> 等級的風險。</div>`;
+                return;
+            }
+
+            let html = '';
+            data.forEach(group => {
+                let displayUrl = group.siteUrl.replace(' (HTTPS)', '').replace(' (HTTP)', '');
+
+                let vulnHtml = '';
+                group.alertNames.forEach(alertName => {
+                    // 🔥 修改重點：將 alertName 編碼後帶入 URL 的 target 參數
+                    // encodeURIComponent 處理空格和特殊符號
+                    const safeName = encodeURIComponent(alertName);
+
+                    vulnHtml += `
+                    <li class="vuln-item"
+                        onclick="location.href='/report-detail.html?id=${group.reportId}&target=${safeName}'">
+                        ${alertName}
+                    </li>`;
+                });
+
+                html += `
+                <div class="site-card border-${level}">
+                    <a href="/report-detail.html?id=${group.reportId}" class="site-url">${displayUrl}</a>
+                    <ul class="vuln-list">
+                        ${vulnHtml}
+                    </ul>
+                </div>
+            `;
+            });
+            container.innerHTML = html;
+        })
+        .catch(err => {
+            console.error(err);
+            document.getElementById('resultsContainer').innerHTML = '<div style="color:red; text-align:center;">載入失敗</div>';
+        });
+</script>
+
+</body>
+</html>

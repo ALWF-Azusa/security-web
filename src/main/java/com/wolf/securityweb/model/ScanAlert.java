@@ -1,51 +1,44 @@
 package com.wolf.securityweb.model;
 
+import com.fasterxml.jackson.annotation.JsonBackReference;
+import com.fasterxml.jackson.annotation.JsonManagedReference;
 import jakarta.persistence.*;
 import lombok.Data;
-import lombok.ToString;
 import java.util.ArrayList;
 import java.util.List;
 
-@Data
 @Entity
 @Table(name = "scan_alerts")
+@Data
 public class ScanAlert {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    // 關聯回主報告 (Foreign Key)
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "scan_report_id", nullable = false)
-    @ToString.Exclude // 避免 Lombok 造成無限迴圈
+    @ManyToOne
+    @JoinColumn(name = "scan_report_id")
+    @JsonBackReference
     private ScanReport scanReport;
 
-    @Column(name = "plugin_id")
     private String pluginId;
-
-    @Column(name = "alert_name")
     private String alertName;
-
-    @Column(name = "risk_level")
     private String riskLevel;
+    private int riskCount;
 
-    @Column(name = "risk_count")
-    private Integer riskCount;
-
-    @Column(columnDefinition = "TEXT") // 支援長文字
+    // 🔥 修改：加上 @Lob，並明確指定 columnDefinition
+    @Lob
+    @Column(columnDefinition = "LONGTEXT")
     private String description;
 
-    @Column(columnDefinition = "TEXT")
+    @Lob
+    @Column(columnDefinition = "LONGTEXT")
     private String solution;
 
-    @Column(name = "cwe_id")
     private String cweId;
-
-    @Column(name = "wasc_id")
     private String wascId;
 
-    // 關聯設定：一個 Alert 有多個 Instances
-    @OneToMany(mappedBy = "scanAlert", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @OneToMany(mappedBy = "scanAlert", cascade = CascadeType.ALL, orphanRemoval = true)
+    @JsonManagedReference
     private List<AlertInstance> alertInstances = new ArrayList<>();
 }

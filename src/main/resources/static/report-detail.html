@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>弱點掃描詳情</title>
+    <style>
+        /* === 基礎設定 === */
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 20px; background-color: #f4f7f6; color: #333; }
+        .container { max-width: 1200px; margin: 0 auto; background: white; padding: 30px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
+        a { text-decoration: none; color: #2980b9; }
+        a:hover { text-decoration: underline; }
+
+        /* === 頂部導航與資訊 === */
+        .header-bar { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #eee; padding-bottom: 20px; margin-bottom: 30px; }
+        .btn-back { padding: 8px 16px; background-color: #95a5a6; color: white; border-radius: 5px; font-weight: bold; transition: 0.3s; }
+        .btn-back:hover { background-color: #7f8c8d; text-decoration: none; }
+        .report-title { margin: 0; font-size: 1.8em; color: #2c3e50; }
+        .meta-info { color: #7f8c8d; font-size: 0.9em; margin-top: 5px; }
+
+        /* === 風險等級標籤 (Badge) === */
+        .badge { display: inline-block; padding: 5px 12px; border-radius: 15px; color: white; font-size: 0.85em; font-weight: bold; min-width: 80px; text-align: center; }
+        .risk-High { background-color: #e74c3c; }
+        .risk-Medium { background-color: #e67e22; }
+        .risk-Low { background-color: #f1c40f; color: #333; }
+        .risk-Informational { background-color: #3498db; }
+        .risk-False { background-color: #2ecc71; }
+
+        /* === Section 1: Summary 表格 === */
+        .section-title { font-size: 1.4em; border-left: 5px solid #2c3e50; padding-left: 10px; margin-bottom: 15px; margin-top: 40px; color: #34495e; }
+
+        .summary-table { width: 100%; border-collapse: collapse; margin-bottom: 30px; }
+        .summary-table th, .summary-table td { padding: 12px 15px; text-align: left; border-bottom: 1px solid #eee; }
+        .summary-table th { background-color: #f8f9fa; color: #555; font-weight: 600; }
+        .summary-table tr:hover { background-color: #eef2f3; cursor: pointer; transform: scale(1.005); transition: 0.1s; }
+
+        /* === Section 2: Alert Details (摺疊樣式優化) === */
+        .alert-block { border: 1px solid #ddd; border-radius: 8px; margin-bottom: 15px; overflow: hidden; background: white; transition: box-shadow 0.3s; }
+        .alert-block.active { box-shadow: 0 4px 12px rgba(0,0,0,0.1); border-color: #bdc3c7; }
+
+        /* 標題列：可點擊 */
+        .alert-header {
+            padding: 15px 20px;
+            background-color: #f8f9fa;
+            border-bottom: 1px solid transparent;
+            display: flex; align-items: center; justify-content: space-between;
+            cursor: pointer;
+            user-select: none;
+            transition: background-color 0.2s;
+        }
+        .alert-header:hover { background-color: #ecf0f1; }
+
+        /* 當展開時，標題列下方要有線 */
+        .alert-block.active .alert-header { border-bottom: 1px solid #ddd; background-color: #fff; }
+
+        .alert-title-group { display: flex; align-items: center; gap: 10px; }
+        .alert-name { font-size: 1.1em; font-weight: bold; color: #2c3e50; }
+
+        /* 箭頭動畫 */
+        .arrow-icon { transition: transform 0.3s ease; color: #7f8c8d; font-size: 0.8em; }
+        .alert-block.active .arrow-icon { transform: rotate(180deg); }
+
+        /* 內容區塊：預設隱藏 */
+        .alert-body {
+            display: none; /* 🔥 關鍵：預設隱藏 */
+            padding: 20px;
+            animation: fadeIn 0.4s ease;
+        }
+        /* 當有 active class 時顯示 */
+        .alert-block.active .alert-body { display: block; }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .info-row { margin-bottom: 15px; }
+        .info-label { font-weight: bold; color: #555; display: block; margin-bottom: 5px; }
+        .info-content { color: #444; line-height: 1.6; background: #fafafa; padding: 10px; border-radius: 5px; border-left: 3px solid #ddd; }
+
+        /* === Instances 表格 === */
+        .instance-table { width: 100%; border-collapse: collapse; font-size: 0.9em; margin-top: 10px; table-layout: fixed; }
+        .instance-table th, .instance-table td { padding: 8px; border: 1px solid #eee; vertical-align: top; word-wrap: break-word; }
+        .instance-table th { background-color: #eee; width: 15%; }
+
+        .code-snippet {
+            font-family: Consolas, Monaco, 'Courier New', monospace;
+            background: #fdf6e3; color: #d33682;
+            padding: 2px 5px; border-radius: 3px;
+            word-break: break-all;
+            display: block;
+            max-height: 150px;
+            overflow-y: auto;
+        }
+
+        /* 這是給 JS 控制捲動時的高亮效果 */
+        .highlight-pulse { animation: pulse 1s 2; }
+        @keyframes pulse {
+            0% { background-color: #fff; }
+            50% { background-color: #fff3cd; }
+            100% { background-color: #fff; }
+        }
+
+    </style>
+</head>
+<body>
+
+<div class="container">
+
+    <div class="header-bar">
+        <div>
+            <h1 class="report-title" id="siteTitle">Loading...</h1>
+            <div class="meta-info" id="metaInfo">Loading...</div>
+        </div>
+        <a href="/dashboard.html" class="btn-back">← 回儀表板</a>
+    </div>
+
+    <h2 class="section-title">Summary of Sequences (弱點清單總表)</h2>
+    <p style="color:#666; font-size:0.9em; margin-bottom: 10px;">👇 點擊表格列可快速展開詳細內容</p>
+
+    <div style="text-align: right; margin-bottom: 5px;">
+        <button onclick="toggleAll(true)" style="cursor:pointer; border:1px solid #ddd; background:white; padding:5px 10px; border-radius:4px;">展開全部</button>
+        <button onclick="toggleAll(false)" style="cursor:pointer; border:1px solid #ddd; background:white; padding:5px 10px; border-radius:4px;">收合全部</button>
+    </div>
+
+    <table class="summary-table">
+        <thead>
+        <tr>
+            <th style="width: 15%;">Risk Level</th>
+            <th style="width: 70%;">Alert Name (攻擊類別)</th>
+            <th style="width: 15%;">Instances</th>
+        </tr>
+        </thead>
+        <tbody id="summaryBody">
+        <tr><td colspan="3" style="text-align: center;">正在載入數據...</td></tr>
+        </tbody>
+    </table>
+
+    <h2 class="section-title">Alert Detail (弱點詳細分析)</h2>
+    <div id="detailContainer">
+    </div>
+
+</div>
+
+<script>
+    const urlParams = new URLSearchParams(window.location.search);
+    const reportId = urlParams.get('id');
+
+    const targetAlert = urlParams.get('target');
+
+    if (!reportId) { /* ... 略 ... */ }
+
+    fetch(`/api/reports/${reportId}`)
+        .then(res => res.json())
+        .then(report => {
+            renderHeader(report);
+            renderSummary(report.scanAlerts);
+            renderDetails(report.scanAlerts);
+
+            // 🔥 2. 自動滑動邏輯
+            if (targetAlert) {
+                // 在報告裡尋找名稱符合的弱點 index
+                // decodeURIComponent 解碼 (把 %20 變回空白)
+                const decodedTarget = decodeURIComponent(targetAlert);
+
+                // 使用 findIndex 找位置
+                const targetIndex = report.scanAlerts.findIndex(a => a.alertName === decodedTarget);
+
+                if (targetIndex !== -1) {
+                    // 稍微延遲一點點，確保畫面渲染完畢後再跳轉，體驗較好
+                    setTimeout(() => {
+                        jumpToAlert(targetIndex);
+                    }, 300);
+                }
+            }
+        })
+        .catch(err => {
+            console.error(err);
+            document.getElementById('siteTitle').innerText = "載入失敗";
+            document.getElementById('summaryBody').innerHTML = '<tr><td colspan="3" style="color:red; text-align:center;">無法讀取報告資料，請稍後再試。</td></tr>';
+        });
+
+    function renderHeader(report) {
+        const displayTitle = report.siteUrl.replace(' (HTTPS)', '').replace(' (HTTP)', '');
+        document.getElementById('siteTitle').innerText = displayTitle;
+        const dateStr = new Date(report.generatedOn).toLocaleString('zh-TW', { hour12: false });
+        document.getElementById('metaInfo').innerHTML =
+            `📅 掃描時間: ${dateStr} &nbsp;|&nbsp; 🛡️ ZAP Version: ${report.zapVersion}`;
+    }
+
+    function renderSummary(alerts) {
+        const tbody = document.getElementById('summaryBody');
+        let html = '';
+        const riskOrder = { 'High': 1, 'Medium': 2, 'Low': 3, 'Informational': 4, 'False Positive': 5 };
+        alerts.sort((a, b) => (riskOrder[a.riskLevel] || 99) - (riskOrder[b.riskLevel] || 99));
+
+        if (alerts.length === 0) {
+            html = '<tr><td colspan="3" style="text-align:center; padding:20px;">🎉 恭喜！本報告未發現任何弱點。</td></tr>';
+        } else {
+            alerts.forEach((alert, index) => {
+                // 🔥 修改重點：點擊時呼叫 jumpToAlert
+                html += `
+                    <tr onclick="jumpToAlert(${index})" title="點擊展開詳情">
+                        <td><span class="badge risk-${alert.riskLevel.split(' ')[0]}">${alert.riskLevel}</span></td>
+                        <td style="font-weight: 500; color: #2c3e50;">${alert.alertName}</td>
+                        <td style="font-weight: bold; text-align: center;">${alert.riskCount}</td>
+                    </tr>
+                `;
+            });
+        }
+        tbody.innerHTML = html;
+    }
+
+    function renderDetails(alerts) {
+        const container = document.getElementById('detailContainer');
+        let html = '';
+
+        alerts.forEach((alert, index) => {
+            let instanceHtml = '';
+            if (alert.alertInstances && alert.alertInstances.length > 0) {
+                instanceHtml = `
+                    <div style="margin-top: 15px;">
+                        <span class="info-label">🔴 Vulnerable Instances (受影響的網址/參數):</span>
+                        <table class="instance-table">
+                            <thead>
+                                <tr>
+                                    <th style="width:10%">Method</th>
+                                    <th style="width:30%">URL</th>
+                                    <th style="width:20%">Attack / Param</th>
+                                    <th style="width:40%">Evidence</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                `;
+                alert.alertInstances.forEach(inst => {
+                    instanceHtml += `
+                        <tr>
+                            <td>${inst.method}</td>
+                            <td style="word-break: break-all;">${inst.url}</td>
+                            <td>
+                                <div style="font-weight:bold;">${inst.parameter || '-'}</div>
+                                ${inst.attack ? `<span class="code-snippet">${inst.attack}</span>` : ''}
+                            </td>
+                            <td>${inst.evidence ? `<span class="code-snippet">${inst.evidence}</span>` : '-'}</td>
+                        </tr>`;
+                });
+                instanceHtml += `</tbody></table></div>`;
+            }
+
+            // 🔥 修改重點：增加 onclick="toggleDetail(index)" 和箭頭圖示
+            html += `
+                <div id="alert-${index}" class="alert-block">
+                    <div class="alert-header" onclick="toggleDetail(${index})">
+                        <div class="alert-title-group">
+                            <span id="arrow-${index}" class="arrow-icon">▼</span>
+                            <span class="alert-name">${alert.alertName}</span>
+                        </div>
+                        <span class="badge risk-${alert.riskLevel.split(' ')[0]}">${alert.riskLevel}</span>
+                    </div>
+
+                    <div class="alert-body">
+                        <div class="info-row">
+                            <span class="info-label">📝 Description:</span>
+                            <div class="info-content">${alert.description}</div>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">💡 Solution:</span>
+                            <div class="info-content">${alert.solution}</div>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">📚 Reference:</span>
+                            <div class="info-content">
+                                CWE ID: <a href="https://cwe.mitre.org/data/definitions/${alert.cweId}.html" target="_blank">${alert.cweId}</a>
+                                &nbsp;|&nbsp; WASC ID: ${alert.wascId}
+                            </div>
+                        </div>
+                        ${instanceHtml}
+                    </div>
+                </div>
+            `;
+        });
+        container.innerHTML = html || '<div style="text-align:center; color:#777;">無詳細資料</div>';
+    }
+
+    // === 🔥 新增：控制展開與收合的邏輯 ===
+
+    // 1. 切換單一區塊的開關 (點擊 Header 時觸發)
+    function toggleDetail(index) {
+        const block = document.getElementById(`alert-${index}`);
+        block.classList.toggle('active');
+    }
+
+    // 2. 從上方表格跳轉並強制展開 (點擊 Summary 時觸發)
+    function jumpToAlert(index) {
+        const block = document.getElementById(`alert-${index}`);
+
+        // 如果原本是關的，就打開它
+        if (!block.classList.contains('active')) {
+            block.classList.add('active');
+        }
+
+        // 捲動過去
+        block.scrollIntoView({behavior: 'smooth', block: 'start'});
+
+        // 加個閃爍特效提醒使用者是這一個
+        block.classList.add('highlight-pulse');
+        setTimeout(() => block.classList.remove('highlight-pulse'), 2000);
+    }
+
+    // 3. 全部展開 / 全部收合
+    function toggleAll(shouldOpen) {
+        const blocks = document.querySelectorAll('.alert-block');
+        blocks.forEach(block => {
+            if (shouldOpen) block.classList.add('active');
+            else block.classList.remove('active');
+        });
+    }
+</script>
+
+</body>
+</html>
