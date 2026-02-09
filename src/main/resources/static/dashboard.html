@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>資安弱點儀表板</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 20px; background-color: #f4f7f6; position: relative; }
+        h1, h2 { color: #333; text-align: center; }
+
+        /* --- 上傳按鈕區 --- */
+        .upload-container {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+        }
+        .btn-upload {
+            background-color: #2c3e50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1em;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: background 0.3s;
+        }
+        .btn-upload:hover { background-color: #34495e; }
+        .btn-upload:active { transform: translateY(1px); }
+
+        /* --- [新增] 右下角上傳狀態清單樣式 --- */
+        .upload-status-box {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            width: 350px;
+            max-height: 400px; /* 超過高度會出現捲軸 */
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 0 15px rgba(0,0,0,0.2);
+            overflow-y: auto;
+            padding: 15px;
+            display: none; /* 預設隱藏，有上傳才顯示 */
+            z-index: 1000;
+        }
+
+        /* 清單中的每一列 */
+        .status-item {
+            font-size: 0.9em;
+            padding: 8px 0;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        /* 狀態文字顏色 */
+        .status-success { color: green; font-weight: bold; }
+        .status-error { color: red; font-weight: bold; }
+        .status-loading { color: #2980b9; }
+
+        /* --- 上方圓圈統計區 --- */
+        .summary-container {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin-bottom: 40px;
+            flex-wrap: wrap;
+            margin-top: 20px;
+        }
+
+        .risk-circle {
+            width: 140px; height: 140px;
+            border-radius: 50%;
+            background: white;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+            border: 5px solid #ddd;
+            transition: transform 0.2s;
+        }
+        .risk-circle:hover { transform: scale(1.05); }
+        .risk-count { font-size: 2.5em; font-weight: bold; color: #333; }
+        .risk-label { font-size: 0.9em; color: #777; text-transform: uppercase; margin-top: 5px; }
+
+        /* 風險顏色定義 */
+        .border-high { border-color: #e74c3c; color: #e74c3c; }
+        .border-medium { border-color: #e67e22; color: #e67e22; }
+        .border-low { border-color: #f1c40f; color: #f39c12; }
+        .border-info { border-color: #3498db; color: #3498db; }
+        .border-false { border-color: #2ecc71; color: #2ecc71; }
+
+        /* --- 下方網站列表區 --- */
+        .table-container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+            overflow: hidden;
+        }
+
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 15px 20px; text-align: left; border-bottom: 1px solid #eee; }
+        th { background-color: #f8f9fa; color: #555; font-weight: 600; }
+        tr:hover { background-color: #f1f1f1; }
+
+        .site-link { color: #2980b9; text-decoration: none; font-weight: bold; }
+        .site-link:hover { text-decoration: underline; }
+
+        /* 列表徽章 */
+        .badge {
+            display: inline-block; min-width: 25px; padding: 3px 8px;
+            border-radius: 12px; color: white; font-size: 0.85em;
+            text-align: center; margin-right: 5px;
+        }
+        .bg-high { background-color: #e74c3c; }
+        .bg-medium { background-color: #e67e22; }
+        .bg-low { background-color: #f1c40f; color: #333; }
+        .bg-info { background-color: #3498db; }
+        .bg-false { background-color: #2ecc71; }
+
+    </style>
+</head>
+<body>
+
+<div class="upload-container">
+    <input type="file" id="fileInput" style="display: none;" accept=".html,.xml,.json" multiple>
+
+    <button class="btn-upload" onclick="document.getElementById('fileInput').click()">
+        📂 批次上傳報告
+    </button>
+</div>
+
+<div id="uploadStatusBox" class="upload-status-box">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+        <h4 style="margin: 0;">上傳進度佇列</h4>
+        <button onclick="document.getElementById('uploadStatusBox').style.display='none'"
+                style="cursor:pointer; border:none; background:none; font-size: 1.2em; color:#888;">&times;</button>
+    </div>
+    <div id="statusList"></div>
+</div>
+
+<h1>Summary of Alerts</h1>
+
+<div class="summary-container" id="globalSummary">
+    <div>Loading...</div>
+</div>
+
+<hr style="border: 0; border-top: 1px solid #ddd; margin: 30px 0;">
+
+<h2>Website Risk Breakdown</h2>
+
+<div class="table-container">
+    <table>
+        <thead>
+        <tr>
+            <th>Website URL</th>
+            <th>Risk Distribution (High / Med / Low / Info)</th>
+        </tr>
+        </thead>
+        <tbody id="siteListBody">
+        <tr><td colspan="2" style="text-align:center;">正在載入數據...</td></tr>
+        </tbody>
+    </table>
+</div>
+
+<script>
+    // 設定 API 網址 (請確認與後端 Controller 一致)
+    const UPLOAD_API_URL = '/api/reports/upload';
+
+    // 頁面載入時，先抓一次數據
+    loadDashboardData();
+
+    // 監聽檔案選擇事件 (支援多檔)
+    document.getElementById('fileInput').addEventListener('change', async function(event) {
+        const files = event.target.files;
+        if (files.length === 0) return;
+
+        // 顯示右下角狀態框
+        const statusBox = document.getElementById('uploadStatusBox');
+        const statusList = document.getElementById('statusList');
+        statusBox.style.display = 'block';
+        statusList.innerHTML = ''; // 清空上一次的紀錄
+
+        // 迴圈：一個一個處理檔案
+        for (let i = 0; i < files.length; i++) {
+            const file = files[i];
+
+            // 1. 在清單中建立一個新的狀態列
+            const row = document.createElement('div');
+            row.className = 'status-item';
+            // 產生唯一的 ID (例如 status-0, status-1) 以便稍後更新文字
+            const statusId = `status-${i}`;
+
+            row.innerHTML = `
+                    <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 200px;" title="${file.name}">
+                        ${file.name}
+                    </span>
+                    <span id="${statusId}" class="status-loading">⏳ 處理中...</span>
+                `;
+            statusList.appendChild(row);
+
+            // 2. 呼叫上傳函式 (await 等待上傳完畢才換下一個，避免伺服器塞車)
+            await uploadSingleFile(file, statusId);
+        }
+
+        // 全部檔案跑完後，自動刷新儀表板數據
+        loadDashboardData();
+
+        // 清空 input，讓使用者可以再次選擇同樣的檔案
+        this.value = '';
+    });
+
+    // 封裝：單一檔案上傳邏輯
+    async function uploadSingleFile(file, statusId) {
+        const formData = new FormData();
+        formData.append('file', file);
+        const statusSpan = document.getElementById(statusId);
+
+        try {
+            const response = await fetch(UPLOAD_API_URL, {
+                method: 'POST',
+                body: formData
+            });
+
+            if (response.ok) {
+                // 後端回傳 200 OK，代表成功儲存 (因為後端有寫 delete existing，所以這也是更新成功的意思)
+                statusSpan.innerHTML = '✅ 完成/刷新';
+                statusSpan.className = 'status-success';
+            } else {
+                // 失敗時，讀取後端回傳的錯誤訊息
+                const errorMsg = await response.text();
+                statusSpan.innerHTML = '❌ 失敗';
+                statusSpan.title = errorMsg; // 滑鼠移上去可以看到詳細錯誤原因
+                statusSpan.className = 'status-error';
+                console.error(`Upload failed for ${file.name}:`, errorMsg);
+            }
+        } catch (error) {
+            console.error(error);
+            statusSpan.innerHTML = '❌ 連線錯誤';
+            statusSpan.className = 'status-error';
+        }
+    }
+
+    // 封裝：載入儀表板數據 (圓圈 + 列表)
+    function loadDashboardData() {
+        // 載入圓圈
+        fetch('/api/dashboard/global')
+            .then(res => res.json())
+            .then(data => {
+                const html = `
+                        <div class="risk-circle border-high"><span class="risk-count">${data.high}</span><span class="risk-label">High</span></div>
+                        <div class="risk-circle border-medium"><span class="risk-count">${data.medium}</span><span class="risk-label">Medium</span></div>
+                        <div class="risk-circle border-low"><span class="risk-count">${data.low}</span><span class="risk-label">Low</span></div>
+                        <div class="risk-circle border-info"><span class="risk-count">${data.informational}</span><span class="risk-label">Info</span></div>
+                        <div class="risk-circle border-false"><span class="risk-count">${data.falsePositives}</span><span class="risk-label">False+</span></div>
+                    `;
+                document.getElementById('globalSummary').innerHTML = html;
+            })
+            .catch(err => console.error("無法載入全域統計", err));
+
+        // 載入列表
+        fetch('/api/dashboard/sites')
+            .then(res => res.json())
+            .then(sites => {
+                let html = '';
+                if (sites.length === 0) {
+                    html = '<tr><td colspan="2" style="text-align:center;">目前沒有資料，請上傳報告。</td></tr>';
+                } else {
+                    sites.forEach(site => {
+                        html += `
+                                <tr>
+                                    <td><a href="${site.url}" target="_blank" class="site-link">${site.url}</a></td>
+                                    <td>
+                                        <span class="badge bg-high">${site.riskCounts.high}</span>
+                                        <span class="badge bg-medium">${site.riskCounts.medium}</span>
+                                        <span class="badge bg-low">${site.riskCounts.low}</span>
+                                        <span class="badge bg-info">${site.riskCounts.informational}</span>
+                                        <span class="badge bg-false">${site.riskCounts.falsePositives}</span>
+                                    </td>
+                                </tr>
+                            `;
+                    });
+                }
+                document.getElementById('siteListBody').innerHTML = html;
+            })
+            .catch(err => console.error("無法載入網站列表", err));
+    }
+</script>
+</body>
+</html>
