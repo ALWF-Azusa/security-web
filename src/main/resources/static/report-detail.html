@@ -112,9 +112,20 @@
             <h1 class="report-title" id="siteTitle">Loading...</h1>
             <div class="meta-info" id="metaInfo">Loading...</div>
         </div>
-        <a href="/dashboard.html" class="btn-back">← 回儀表板</a>
+        <a href="javascript:history.back()" class="btn-back">← 回儀表板</a>
     </div>
-
+    <div id="contactInfoCard" class="site-card border-Informational" style="display: none; background-color: #f0f8ff; border-left: 5px solid #3498db;">
+        <h3 style="margin-top: 0; color: #2980b9;">🛡️ 負責單位與系統資訊 (機密)</h3>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 0.95em;">
+            <div><strong>🏷️ 系統名稱：</strong> <span id="infoSysName"></span></div>
+            <div><strong>🏢 業務單位：</strong> <span id="infoDept"></span></div>
+            <div><strong>👨‍💼 管理人：</strong> <span id="infoManager"></span></div>
+            <div><strong>📧 管理人信箱：</strong> <span id="infoEmail"></span></div>
+            <div><strong>🏢 委外廠商：</strong> <span id="infoVendor"></span></div>
+            <div><strong>🌐 系統 IP：</strong> <span id="infoIp"></span></div>
+            <div style="grid-column: span 2;"><strong>📝 備註與用途：</strong> <span id="infoNotes"></span></div>
+        </div>
+    </div>
     <h2 class="section-title">Summary of Sequences (弱點清單總表)</h2>
     <p style="color:#666; font-size:0.9em; margin-bottom: 10px;">👇 點擊表格列可快速展開詳細內容</p>
 
@@ -154,20 +165,29 @@
         .then(res => res.json())
         .then(report => {
             renderHeader(report);
+
+            // 🔥 補上這一段：如果有負責人資料，就把卡片顯示出來並填入資料
+            if (report.contactInfo) {
+                const info = report.contactInfo;
+                document.getElementById('contactInfoCard').style.display = 'block';
+                document.getElementById('infoSysName').innerText = info.systemName || '-';
+                document.getElementById('infoDept').innerText = info.department || '-';
+                document.getElementById('infoManager').innerText = info.managerName || '-';
+                document.getElementById('infoEmail').innerText = info.managerEmail || '-';
+                document.getElementById('infoVendor').innerText = info.vendor || '-';
+                document.getElementById('infoIp').innerText = info.ipAddress || '-';
+                document.getElementById('infoNotes').innerText = info.notes || '-';
+            }
+
+            // 原本的渲染邏輯保持不變
             renderSummary(report.scanAlerts);
             renderDetails(report.scanAlerts);
 
-            // 🔥 2. 自動滑動邏輯
+            // 🔥 2. 自動滑動邏輯 (保持您原本寫好的)
             if (targetAlert) {
-                // 在報告裡尋找名稱符合的弱點 index
-                // decodeURIComponent 解碼 (把 %20 變回空白)
                 const decodedTarget = decodeURIComponent(targetAlert);
-
-                // 使用 findIndex 找位置
                 const targetIndex = report.scanAlerts.findIndex(a => a.alertName === decodedTarget);
-
                 if (targetIndex !== -1) {
-                    // 稍微延遲一點點，確保畫面渲染完畢後再跳轉，體驗較好
                     setTimeout(() => {
                         jumpToAlert(targetIndex);
                     }, 300);

@@ -1,5 +1,6 @@
 package com.wolf.securityweb.model;
 
+import jakarta.persistence.Transient;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonManagedReference;
 import jakarta.persistence.*;
@@ -13,6 +14,8 @@ import java.util.List;
 @Table(name = "scan_reports")
 public class ScanReport {
 
+    @Transient//@Transient 代表這個欄位不會在資料庫建立實體欄位，只是在記憶體中用來打包傳給前端
+    private SystemContactInfo contactInfo;
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;

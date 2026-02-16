@@ -8,10 +8,13 @@
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 20px; background-color: #f4f7f6; position: relative; }
         h1, h2 { color: #333; text-align: center; }
 
+        /* 🔥 修改：將右上角容器改成 Flexbox 讓兩個按鈕並排 */
         .upload-container {
             position: absolute;
             top: 20px;
             right: 20px;
+            display: flex;
+            gap: 10px;
         }
         .btn-upload {
             background-color: #2c3e50;
@@ -28,6 +31,10 @@
         }
         .btn-upload:hover { background-color: #34495e; }
         .btn-upload:active { transform: translateY(1px); }
+
+        /* 🔥 新增：CSV 上傳按鈕專屬顏色 */
+        .btn-csv { background-color: #3498db; }
+        .btn-csv:hover { background-color: #2980b9; }
 
         .upload-status-box {
             position: fixed; bottom: 20px; right: 20px; width: 350px; max-height: 400px;
@@ -87,6 +94,11 @@
     <button class="btn-upload" onclick="document.getElementById('fileInput').click()">
         📂 批次上傳報告
     </button>
+
+    <input type="file" id="csvFileInput" style="display: none;" accept=".xlsx, .xls">
+    <button class="btn-upload btn-csv" onclick="document.getElementById('csvFileInput').click()">
+        🏢 匯入負責人 (Excel)
+    </button>
 </div>
 
 <div id="uploadStatusBox" class="upload-status-box">
@@ -129,11 +141,21 @@
 
 <script>
     const UPLOAD_API_URL = '/api/reports/upload';
+    const UPLOAD_CSV_API_URL = '/api/reports/upload-contacts';
     let isDateDescending = true;
     let cachedSitesData = [];
 
+    // 🔥 1. 新增：判斷是不是剛進這頁面
+    let isFirstLoad = true;
+
+    // 🔥 2. 新增：當離開這個頁面時 (例如點擊詳細報告)，偷偷記住現在的捲動高度
+    window.addEventListener('beforeunload', () => {
+        sessionStorage.setItem('dashboardScrollPos', window.scrollY);
+    });
+
     loadDashboardData();
 
+    // === 處理 ZAP 報告上傳 ===
     document.getElementById('fileInput').addEventListener('change', async function(event) {
         const files = event.target.files;
         if (files.length === 0) return;
@@ -148,20 +170,43 @@
             const statusId = `status-${i}`;
             row.innerHTML = `<span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 200px;" title="${file.name}">${file.name}</span><span id="${statusId}" class="status-loading">⏳ 處理中...</span>`;
             statusList.appendChild(row);
-            await uploadSingleFile(file, statusId);
+            await uploadSingleFile(file, statusId, UPLOAD_API_URL);
         }
         loadDashboardData();
         this.value = '';
     });
 
-    async function uploadSingleFile(file, statusId) {
+    // === 🔥 新增：處理負責人 CSV 上傳 ===
+    document.getElementById('csvFileInput').addEventListener('change', async function(event) {
+        const files = event.target.files;
+        if (files.length === 0) return;
+        const file = files[0];
+
+        const statusBox = document.getElementById('uploadStatusBox');
+        const statusList = document.getElementById('statusList');
+        statusBox.style.display = 'block';
+
+        const row = document.createElement('div');
+        row.className = 'status-item';
+        const statusId = 'status-csv-' + Date.now();
+        // 加上一個建築物 icon 區分它是負責人名單
+        row.innerHTML = `<span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 200px;" title="${file.name}">🏢 ${file.name}</span><span id="${statusId}" class="status-loading">⏳ 匯入中...</span>`;
+        // 把最新的進度加在最上面
+        statusList.insertBefore(row, statusList.firstChild);
+
+        await uploadSingleFile(file, statusId, UPLOAD_CSV_API_URL);
+        this.value = '';
+    });
+
+    // === 泛用上傳函式 (支援兩種 API) ===
+    async function uploadSingleFile(file, statusId, apiUrl) {
         const formData = new FormData();
         formData.append('file', file);
         const statusSpan = document.getElementById(statusId);
         try {
-            const response = await fetch(UPLOAD_API_URL, { method: 'POST', body: formData });
+            const response = await fetch(apiUrl, { method: 'POST', body: formData });
             if (response.ok) {
-                statusSpan.innerHTML = '✅ 完成/刷新';
+                statusSpan.innerHTML = '✅ 成功';
                 statusSpan.className = 'status-success';
             } else {
                 const errorMsg = await response.text();
@@ -181,7 +226,6 @@
         fetch('/api/dashboard/global')
             .then(res => res.json())
             .then(data => {
-                // 🔥 修改重點：每個 class="risk-circle" 都加上 onclick 跳轉
                 const html = `
                     <div class="risk-circle border-high" style="cursor:pointer;" onclick="location.href='/risk-level.html?level=High'">
                         <span class="risk-count">${data.high}</span>
@@ -211,8 +255,6 @@
             .then(res => res.json())
             .then(sites => {
                 cachedSitesData = sites;
-
-                // 🔥 新增：更新總數量
                 const countBadge = document.getElementById('totalSitesBadge');
                 if(sites.length > 0) {
                     countBadge.innerText = sites.length;
@@ -235,22 +277,24 @@
         } else {
             sites.forEach(site => {
                 const dateObj = new Date(site.generatedOn);
-                const dateStr = dateObj.toLocaleString('zh-TW', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+                const dateStr = dateObj.toLocaleString('zh-TW', {
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
 
-                // === 網址美化 ===
                 let displayUrl = site.url;
 
                 if (site.url.includes('(HTTPS)')) {
                     let domainOnly = site.url.replace(' (HTTPS)', '');
                     displayUrl = `${domainOnly} <span style="color: #27ae60; font-weight:bold; font-size:0.85em; margin-left:5px; border:1px solid #27ae60; padding:1px 5px; border-radius:4px;">🔒 HTTPS</span>`;
-                }
-                else if (site.url.includes('(HTTP)')) {
+                } else if (site.url.includes('(HTTP)')) {
                     let domainOnly = site.url.replace(' (HTTP)', '');
                     displayUrl = `${domainOnly} <span style="color: #e74c3c; font-weight:bold; font-size:0.85em; margin-left:5px; border:1px solid #e74c3c; padding:1px 5px; border-radius:4px;">🔓 HTTP</span>`;
                 }
 
-                // 🔥 重點修改：點擊跳轉到詳細頁面
-                // 使用 reportId (請確認後端 DTO 有加上 reportId 欄位)
                 const detailLink = `/report-detail.html?id=${site.reportId}`;
 
                 html += `
@@ -270,7 +314,21 @@
             });
         }
         document.getElementById('siteListBody').innerHTML = html;
+        // === 🔥 3. 新增：恢復捲動高度的邏輯 ===
+        if (isFirstLoad) {
+            const savedPos = sessionStorage.getItem('dashboardScrollPos');
+            if (savedPos) {
+                // 稍微延遲 50 毫秒，確保表格已經把畫面撐開了再滑動
+                setTimeout(() => {
+                    window.scrollTo({top: parseInt(savedPos, 10), behavior: 'instant'});
+                    // 滑完就清掉紀錄，避免下次從其他地方進來也亂跳
+                    sessionStorage.removeItem('dashboardScrollPos');
+                }, 50);
+            }
+            isFirstLoad = false;
+        }
     }
+
 
     function sortTable(columnIndex) {
         if (columnIndex === 1) {
